@@ -1,4 +1,3 @@
-import { ENV } from "./config.js";
 import Swal from "sweetalert2";
 
 export default () => ({
@@ -72,7 +71,7 @@ export default () => ({
         }
         this.isLoading = true;
         try {
-            const response = await fetch(`${ENV.KIMAI_API_URL}/users/me`, {
+            const response = await fetch(`${import.meta.env.VITE_KIMAI_API_URL}/users/me`, {
                 method: "GET",
                 headers: {
                     Authorization: `Bearer ${this.token}`,
@@ -133,10 +132,10 @@ export default () => ({
                 Accept: "application/json",
             };
             const [resCust, resProj, resAct, resTags] = await Promise.all([
-                fetch(`${ENV.KIMAI_API_URL}/customers`, { headers }),
-                fetch(`${ENV.KIMAI_API_URL}/projects`, { headers }),
-                fetch(`${ENV.KIMAI_API_URL}/activities`, { headers }),
-                fetch(`${ENV.KIMAI_API_URL}/tags`, { headers }),
+                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/customers`, { headers }),
+                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/projects`, { headers }),
+                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/activities`, { headers }),
+                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/tags`, { headers }),
             ]);
 
             if (resCust.ok) this.customers = await resCust.json();
@@ -163,7 +162,7 @@ export default () => ({
 
     async fetchTimesheets() {
         try {
-            const response = await fetch(`${ENV.KIMAI_API_URL}/timesheets`, {
+            const response = await fetch(`${import.meta.env.VITE_KIMAI_API_URL}/timesheets`, {
                 method: "GET",
                 headers: {
                     Authorization: `Bearer ${this.token}`,
@@ -341,7 +340,7 @@ export default () => ({
 
             for (const payload of payloads) {
                 const response = await fetch(
-                    `${ENV.KIMAI_API_URL}/timesheets`,
+                    `${import.meta.env.VITE_KIMAI_API_URL}/timesheets`,
                     {
                         method: "POST",
                         headers: {

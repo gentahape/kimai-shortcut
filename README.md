@@ -25,11 +25,13 @@ This project relies on the following libraries and tools:
    ```
 
 3. **Configuration:**
-   Open the `src/config.js` file and update the `KIMAI_API_URL` to point to your Kimai instance's API endpoint:
-   ```javascript
-   export const ENV = {
-       KIMAI_API_URL: 'https://your-kimai-instance.com/api',
-   };
+   Copy the `.env.example` file to create a `.env` file, then update the `VITE_KIMAI_API_URL` to point to your Kimai instance's API endpoint:
+   ```bash
+   cp .env.example .env
+   ```
+   Inside `.env`:
+   ```env
+   VITE_KIMAI_API_URL=https://your-kimai-instance.com/api
    ```
 
 ## Usage
