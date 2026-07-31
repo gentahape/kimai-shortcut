@@ -380,11 +380,11 @@ export default () => ({
 
             Swal.fire({
                 title: "Success!",
-                text: `${successCount} records created successfully (auto-split skipping lunch break).`,
+                text: `${successCount} records created successfully.`,
                 icon: "success",
                 background: "#1F2937",
                 color: "#fff",
-                timer: 3000,
+                timer: 5000,
                 showConfirmButton: false,
             }).then(() => {
                 this.fetchTimesheets();
