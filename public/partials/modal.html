@@ -1,0 +1,193 @@
+<div id="create-modal" x-cloak x-show="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-70 backdrop-blur-sm transition-opacity">
+    <div @click.away="closeModal" class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        <div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center bg-gray-900">
+            <h3 class="text-lg font-bold text-white">Create Timesheet Record</h3>
+            <button @click="closeModal" class="text-gray-400 hover:text-white transition duration-200 cursor-pointer">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <div class="px-6 py-6 overflow-y-auto space-y-5">
+            
+            <div class="bg-blue-900/40 border border-blue-700 rounded-lg p-4 flex items-start gap-3 shadow-inner">
+                <svg class="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="text-sm text-blue-200 leading-relaxed">
+                    <span class="font-bold text-blue-100">Automated Chunking:</span> The total working duration must be exactly 8 hours. The system will automatically split your input into 2-hour chunks and skip the lunch break (12:00 - 13:00). The form data below will be identically duplicated for each chunk.
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-300">Date</label>
+                    <input type="date" x-model="formData.date" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-300">Start Time</label>
+                    <input type="time" x-model="formData.begin" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-300">End Time</label>
+                    <input type="time" x-model="formData.end" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                </div>
+            </div>
+
+            <div x-data="{
+                open: false, search: '',
+                get filtered() {
+                    if (this.search === '') return customers;
+                    return customers.filter(c => c.name.toLowerCase().includes(this.search.toLowerCase()));
+                },
+                get selectedName() {
+                    let s = customers.find(c => c.id == formData.customer);
+                    return s ? s.name : 'Choose Customer...';
+                },
+                select(id) {
+                    formData.customer = id;
+                    this.open = false;
+                    this.search = '';
+                }
+            }" @click.away="open = false" class="relative">
+                <label class="block mb-2 text-sm font-medium text-gray-300">Customer <span class="text-red-500">*</span></label>
+                <div @click="open = !open" class="bg-gray-700 border border-gray-600 text-sm rounded-lg w-full p-2.5 flex justify-between items-center cursor-pointer transition">
+                    <span x-text="selectedName" :class="formData.customer ? 'text-white' : 'text-gray-400'"></span>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div x-show="open" x-cloak x-transition class="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+                    <div class="p-2 border-b border-gray-600">
+                        <input type="text" x-model="search" class="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Search customer...">
+                    </div>
+                    <ul class="max-h-40 overflow-y-auto">
+                        <template x-for="item in filtered" :key="item.id">
+                            <li @click="select(item.id)" class="px-4 py-2 hover:bg-blue-600 cursor-pointer text-sm text-gray-200 transition-colors" x-text="item.name"></li>
+                        </template>
+                        <li x-show="filtered.length === 0" class="px-4 py-2 text-sm text-gray-400 text-center">Tidak ditemukan</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div x-data="{
+                open: false, search: '',
+                get filtered() {
+                    if (this.search === '') return projects;
+                    return projects.filter(c => c.name.toLowerCase().includes(this.search.toLowerCase()));
+                },
+                get selectedName() {
+                    let s = projects.find(c => c.id == formData.project);
+                    return s ? s.name : 'Choose Project...';
+                },
+                select(id) {
+                    formData.project = id; this.open = false; this.search = '';
+                }
+            }" @click.away="open = false" class="relative">
+                <label class="block mb-2 text-sm font-medium text-gray-300">Project <span class="text-red-500">*</span></label>
+                <div @click="open = !open" class="bg-gray-700 border border-gray-600 text-sm rounded-lg w-full p-2.5 flex justify-between items-center cursor-pointer">
+                    <span x-text="selectedName" :class="formData.project ? 'text-white' : 'text-gray-400'"></span>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div x-show="open" x-cloak x-transition class="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+                    <div class="p-2 border-b border-gray-600">
+                        <input type="text" x-model="search" class="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded p-2 focus:ring-blue-500 outline-none" placeholder="Search project...">
+                    </div>
+                    <ul class="max-h-40 overflow-y-auto">
+                        <template x-for="item in filtered" :key="item.id">
+                            <li @click="select(item.id)" class="px-4 py-2 hover:bg-blue-600 cursor-pointer text-sm text-gray-200" x-text="item.name"></li>
+                        </template>
+                        <li x-show="filtered.length === 0" class="px-4 py-2 text-sm text-gray-400 text-center">Tidak ditemukan</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div x-data="{
+                open: false, search: '',
+                get filtered() {
+                    if (this.search === '') return activities;
+                    return activities.filter(c => c.name.toLowerCase().includes(this.search.toLowerCase()));
+                },
+                get selectedName() {
+                    let s = activities.find(c => c.id == formData.activity);
+                    return s ? s.name : 'Choose Activity...';
+                },
+                select(id) {
+                    formData.activity = id; this.open = false; this.search = '';
+                }
+            }" @click.away="open = false" class="relative">
+                <label class="block mb-2 text-sm font-medium text-gray-300">Activity <span class="text-red-500">*</span></label>
+                <div @click="open = !open" class="bg-gray-700 border border-gray-600 text-sm rounded-lg w-full p-2.5 flex justify-between items-center cursor-pointer">
+                    <span x-text="selectedName" :class="formData.activity ? 'text-white' : 'text-gray-400'"></span>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div x-show="open" x-cloak x-transition class="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+                    <div class="p-2 border-b border-gray-600">
+                        <input type="text" x-model="search" class="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded p-2 focus:ring-blue-500 outline-none" placeholder="Search activity...">
+                    </div>
+                    <ul class="max-h-40 overflow-y-auto">
+                        <template x-for="item in filtered" :key="item.id">
+                            <li @click="select(item.id)" class="px-4 py-2 hover:bg-blue-600 cursor-pointer text-sm text-gray-200" x-text="item.name"></li>
+                        </template>
+                        <li x-show="filtered.length === 0" class="px-4 py-2 text-sm text-gray-400 text-center">Tidak ditemukan</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-300">Description <span class="text-red-500">*</span></label>
+                <textarea x-model="formData.description" rows="3" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Write a description..."></textarea>
+            </div>
+
+            <div x-data="{
+                open: false, search: '',
+                get filtered() {
+                    if (this.search === '') return availableTags.filter(t => !formData.tags.includes(t));
+                    return availableTags.filter(t => t.toLowerCase().includes(this.search.toLowerCase()) && !formData.tags.includes(t));
+                },
+                add(tag) {
+                    if (!formData.tags.includes(tag)) formData.tags.push(tag);
+                    this.search = '';
+                    this.$refs.searchInput.focus(); // Jaga agar tetap bisa mengetik
+                },
+                remove(tag) {
+                    formData.tags = formData.tags.filter(t => t !== tag);
+                },
+                handleKeydown(e) {
+                    if (e.key === 'Enter' && this.search.trim() !== '') {
+                        e.preventDefault();
+                        if (this.filtered.length > 0) this.add(this.filtered[0]);
+                        else this.add(this.search.trim()); // Memungkinkan penambahan tag custom on-the-fly!
+                    }
+                }
+            }" @click.away="open = false" class="relative">
+                <label class="block mb-2 text-sm font-medium text-gray-300">Tags</label>
+                
+                <div @click="open = true; $refs.searchInput.focus()" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg w-full p-1.5 min-h-[42px] flex flex-wrap gap-1.5 items-center cursor-text">
+                    
+                    <template x-for="tag in formData.tags" :key="tag">
+                        <span class="bg-blue-900 text-blue-200 text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 border border-blue-700">
+                            <span x-text="tag"></span>
+                            <button type="button" @click.stop="remove(tag)" class="hover:text-white focus:outline-none">&times;</button>
+                        </span>
+                    </template>
+                    
+                    <input x-ref="searchInput" type="text" x-model="search" @keydown="handleKeydown" @focus="open = true" class="bg-transparent border-none outline-none text-sm text-white flex-grow min-w-[60px] p-1 focus:ring-0" placeholder="Tag...">
+                </div>
+
+                <div x-show="open && (filtered.length > 0 || search.length > 0)" x-cloak x-transition class="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                    <ul>
+                        <template x-for="item in filtered" :key="item">
+                            <li @click="add(item)" class="px-4 py-2 hover:bg-blue-600 cursor-pointer text-sm text-gray-200 transition-colors" x-text="item"></li>
+                        </template>
+                        <li x-show="filtered.length === 0 && search.trim() !== ''" @click="add(search.trim())" class="px-4 py-2 hover:bg-emerald-600 cursor-pointer text-sm text-emerald-200 transition-colors font-medium">
+                            + Tambahkan "<span x-text="search"></span>"
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-700 bg-gray-900 flex justify-end space-x-3">
+            <button @click="closeModal" type="button" class="bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg text-sm px-5 py-2.5 transition cursor-pointer">Close</button>
+            <button @click="saveRecord" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm px-5 py-2.5 transition shadow-lg cursor-pointer">Save</button>
+        </div>
+    </div>
+</div>
