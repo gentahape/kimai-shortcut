@@ -17,15 +17,15 @@ export default () => ({
         tags: [],
         durationPreset: "2h",
         customDuration: 1,
+        durationTime: 1,
     },
 
     durationPresets: [
         { value: "2h", label: "2 Jam (Default)", hours: 2 },
-        { value: "1h", label: "1 Jam", hours: 1 },
         { value: "1.5h", label: "1.5 Jam", hours: 1.5 },
-        { value: "3h", label: "3 Jam", hours: 3 },
-        { value: "4h", label: "4 Jam", hours: 4 },
-        { value: "full", label: "Full Day (Tanpa Pembagian)", hours: null },
+        { value: "1h", label: "1 Jam", hours: 1 },
+        { value: "30m", label: "30 Menit", hours: 0.5 },
+        { value: "full", label: "Full Day / Custom Range", hours: null },
         { value: "custom", label: "Custom...", hours: null },
     ],
 
@@ -33,12 +33,16 @@ export default () => ({
         const preset = this.durationPresets.find(
             (p) => p.value === this.formData.durationPreset,
         );
-        if (!preset || preset.value === "full") {
-            return this.workConfig.expectedWorkHours;
+        if (!preset) return 2;
+
+        if (preset.value === "full") {
+            return Number(this.formData.durationTime) || 1;
         }
+
         if (preset.value === "custom") {
-            return Number(this.formData.customDuration) || 2;
+            return Number(this.formData.customDuration) || 1;
         }
+
         return preset.hours || 2;
     },
 
@@ -367,6 +371,7 @@ export default () => ({
         this.formData.end = this.workConfig.endTime;
         this.formData.durationPreset = "2h";
         this.formData.customDuration = 1;
+        this.formData.durationTime = 1;
         this.formData.description = "";
         this.formData.customer = "";
         this.formData.project = "";
@@ -421,6 +426,15 @@ export default () => ({
             this.showAlert(
                 "Validation Failed",
                 "Duration Present tidak valid.",
+                "warning",
+            );
+            return;
+        }
+
+        if (chunkHours > 2) {
+            this.showAlert(
+                "Validation Failed",
+                "Durasi per task di Kimai tidak boleh lebih dari 2 jam (maksimal 2 jam).",
                 "warning",
             );
             return;

@@ -37,9 +37,15 @@
                         </template>
                     </select>
                 </div>
+                <div x-show="formData.durationPreset === 'full'" x-cloak>
+                    <label class="block mb-2 text-sm font-medium text-gray-300">Duration Time (Jam) <span class="text-red-500">*</span></label>
+                    <input type="number" x-model="formData.durationTime" min="0.25" max="2" step="0.25" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g. 1">
+                    <p class="mt-1 text-xs text-gray-400">Durasi per task (maksimal 2 jam).</p>
+                </div>
                 <div x-show="formData.durationPreset === 'custom'" x-cloak>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">Custom Duration (hours)</label>
-                    <input type="number" x-model="formData.customDuration" @change="onPresetChange()" min="0.25" step="0.25" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g. 1.5">
+                    <label class="block mb-2 text-sm font-medium text-gray-300">Custom Duration (Jam) <span class="text-red-500">*</span></label>
+                    <input type="number" x-model="formData.customDuration" min="0.25" max="2" step="0.25" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g. 1.5">
+                    <p class="mt-1 text-xs text-gray-400">Durasi per task (maksimal 2 jam).</p>
                 </div>
             </div>
 
