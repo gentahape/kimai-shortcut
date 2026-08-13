@@ -5,7 +5,7 @@
     
     <div>
         <div x-cloak x-show="!isAuthenticated" class="flex items-center space-x-3">
-            <input type="text" x-model="token" @keydown.enter="login" placeholder="Token" 
+            <input type="text" x-model="token" @keydown.enter="login" placeholder="Token" autofocus
                 class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block px-3 py-2 placeholder-gray-400"
                 autocomplete="off" :disabled="isLoading">
             

@@ -25,13 +25,20 @@ This project relies on the following libraries and tools:
    ```
 
 3. **Configuration:**
-   Copy the `.env.example` file to create a `.env` file, then update the `VITE_KIMAI_API_URL` to point to your Kimai instance's API endpoint:
+   Copy the `.env.example` file to create a `.env` file, then update the configuration:
    ```bash
    cp .env.example .env
    ```
    Inside `.env`:
    ```env
    VITE_KIMAI_API_URL=https://your-kimai-instance.com/api
+
+   # Work schedule (fully configurable — no code changes needed)
+   VITE_WORK_START_TIME=08:00
+   VITE_WORK_END_TIME=17:00
+   VITE_LUNCH_START=12:00
+   VITE_LUNCH_END=13:00
+   VITE_CHUNK_HOURS=2
    ```
 
 ## Usage
@@ -55,4 +62,36 @@ This project relies on the following libraries and tools:
 4. **Track Time:**
    - On the application page, enter your Kimai **API Token** to sign in.
    - Once authenticated, you can view your recent timesheets, search records, and browse through pages.
-   - Click CREATE button to add a new record, fill in the required fields (date, project, activity, description), and the app will process your 8-hour workday entries, automatically skipping the lunch hour.
+   - Click CREATE button to add a new record, fill in the required fields (date, project, activity, description), and the app will process your workday entries, automatically splitting into chunks and skipping the lunch hour.
+
+## Work Schedule Configuration
+
+The work schedule is fully configurable via environment variables. Simply update your `.env` file:
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_WORK_START_TIME` | `08:00` | Work start time (HH:MM) |
+| `VITE_WORK_END_TIME` | `17:00` | Work end time (HH:MM) |
+| `VITE_LUNCH_START` | `12:00` | Lunch break start (HH:MM) |
+| `VITE_LUNCH_END` | `13:00` | Lunch break end (HH:MM) |
+| `VITE_CHUNK_HOURS` | `2` | Timesheet chunk size in hours |
+
+**Examples:**
+
+```env
+# 09:00 - 18:00 workday (lunch 12:00-13:00) → 8 hours
+VITE_WORK_START_TIME=09:00
+VITE_WORK_END_TIME=18:00
+
+# 07:00 - 16:00 workday (lunch 12:00-13:00) → 8 hours
+VITE_WORK_START_TIME=07:00
+VITE_WORK_END_TIME=16:00
+
+# 08:00 - 17:00, lunch 11:30-12:30 → 8 hours
+VITE_WORK_START_TIME=08:00
+VITE_WORK_END_TIME=17:00
+VITE_LUNCH_START=11:30
+VITE_LUNCH_END=12:30
+```
+
+> ⚠️ After changing `.env`, restart the dev server (`npm run dev`) for Vite to pick up the new values.

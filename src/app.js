@@ -8,13 +8,88 @@ export default () => ({
     isModalOpen: false,
     formData: {
         date: "",
-        begin: "08:00",
-        end: "17:00",
+        begin: "",
+        end: "",
         description: "",
         customer: "",
         project: "",
         activity: "",
         tags: [],
+        durationPreset: "2h",
+        customDuration: 1,
+    },
+
+    durationPresets: [
+        { value: "2h", label: "2 Jam (Default)", hours: 2 },
+        { value: "1h", label: "1 Jam", hours: 1 },
+        { value: "1.5h", label: "1.5 Jam", hours: 1.5 },
+        { value: "3h", label: "3 Jam", hours: 3 },
+        { value: "4h", label: "4 Jam", hours: 4 },
+        { value: "full", label: "Full Day (Tanpa Pembagian)", hours: null },
+        { value: "custom", label: "Custom...", hours: null },
+    ],
+
+    getChunkHours() {
+        const preset = this.durationPresets.find(
+            (p) => p.value === this.formData.durationPreset,
+        );
+        if (!preset || preset.value === "full") {
+            return this.workConfig.expectedWorkHours;
+        }
+        if (preset.value === "custom") {
+            return Number(this.formData.customDuration) || 2;
+        }
+        return preset.hours || 2;
+    },
+
+    get calculatedChunks() {
+        if (!this.formData.begin || !this.formData.end) return [];
+        const dateStr = this.formData.date || "2000-01-01";
+        const workStart = new Date(`${dateStr}T${this.formData.begin}:00`);
+        const workEnd = new Date(`${dateStr}T${this.formData.end}:00`);
+        if (workStart >= workEnd) return [];
+
+        const cfg = this.workConfig;
+        const lunchStart = new Date(`${dateStr}T${cfg.lunchStart}:00`);
+        const lunchEnd = new Date(`${dateStr}T${cfg.lunchEnd}:00`);
+
+        const chunkHours = this.getChunkHours();
+        const chunkMs = chunkHours * 60 * 60 * 1000;
+
+        let current = new Date(workStart);
+        const finalEnd = new Date(workEnd);
+        const slots = [];
+
+        while (current < finalEnd) {
+            if (current >= lunchStart && current < lunchEnd) {
+                current = new Date(lunchEnd);
+                continue;
+            }
+
+            let chunkEnd = new Date(current.getTime() + chunkMs);
+
+            if (current < lunchStart && chunkEnd > lunchStart) {
+                chunkEnd = new Date(lunchStart);
+            }
+
+            if (chunkEnd > finalEnd) {
+                chunkEnd = new Date(finalEnd);
+            }
+
+            if (current.getTime() === chunkEnd.getTime()) break;
+
+            const bStr = current.toTimeString().substring(0, 5);
+            const eStr = chunkEnd.toTimeString().substring(0, 5);
+            slots.push(`${bStr}–${eStr}`);
+
+            current = new Date(chunkEnd);
+        }
+        return slots;
+    },
+
+    onPresetChange() {
+        // Changing duration preset adjusts the chunking interval.
+        // Begin and End times remain default work hours (08:00 - 17:00).
     },
 
     customers: [],
@@ -26,6 +101,31 @@ export default () => ({
     searchQuery: "",
     currentPage: 1,
     itemsPerPage: 10,
+
+    /**
+     * Single source of truth for all work schedule configuration.
+     * All values are read from VITE_* environment variables with sensible defaults.
+     * To change the work schedule, simply update the .env file — no code changes needed.
+     */
+    get workConfig() {
+        return {
+            startTime: import.meta.env.VITE_WORK_START_TIME || "08:00",
+            endTime: import.meta.env.VITE_WORK_END_TIME || "17:00",
+            lunchStart: import.meta.env.VITE_LUNCH_START || "12:00",
+            lunchEnd: import.meta.env.VITE_LUNCH_END || "13:00",
+            chunkHours: Number(import.meta.env.VITE_CHUNK_HOURS) || 2,
+            get expectedWorkHours() {
+                // Calculate expected hours: (end - start) minus lunch duration
+                const [sh, sm] = this.startTime.split(":").map(Number);
+                const [eh, em] = this.endTime.split(":").map(Number);
+                const [lh, lm] = this.lunchStart.split(":").map(Number);
+                const [leH, leM] = this.lunchEnd.split(":").map(Number);
+                const totalMin = (eh * 60 + em) - (sh * 60 + sm);
+                const lunchMin = (leH * 60 + leM) - (lh * 60 + lm);
+                return (totalMin - lunchMin) / 60;
+            },
+        };
+    },
 
     async loadPartial(url) {
         try {
@@ -51,12 +151,16 @@ export default () => ({
     },
 
     checkSession() {
-        const savedUser = sessionStorage.getItem("kimai_user");
-        const savedToken = sessionStorage.getItem("kimai_token");
+        const savedUser = localStorage.getItem("kimai_user");
+        const savedToken = localStorage.getItem("kimai_token");
         if (savedUser && savedToken) {
-            this.user = JSON.parse(savedUser);
-            this.token = savedToken;
-            this.isAuthenticated = true;
+            try {
+                this.user = JSON.parse(savedUser);
+                this.token = savedToken;
+                this.isAuthenticated = true;
+            } catch (e) {
+                this.logout();
+            }
         }
     },
 
@@ -86,10 +190,19 @@ export default () => ({
                 );
 
             const userData = await response.json();
-            sessionStorage.setItem("kimai_token", this.token);
-            sessionStorage.setItem("kimai_user", JSON.stringify(userData));
+            const essentialUser = {
+                id: userData.id,
+                username: userData.username,
+                alias: userData.alias || userData.username,
+                title: userData.title || "",
+                avatar: userData.avatar || "",
+                "color-safe": userData["color-safe"] || userData.color || "#4F46E5",
+            };
 
-            this.user = userData;
+            localStorage.setItem("kimai_token", this.token);
+            localStorage.setItem("kimai_user", JSON.stringify(essentialUser));
+
+            this.user = essentialUser;
             this.isAuthenticated = true;
 
             Swal.fire({
@@ -112,6 +225,8 @@ export default () => ({
     },
 
     logout() {
+        localStorage.removeItem("kimai_token");
+        localStorage.removeItem("kimai_user");
         sessionStorage.removeItem("kimai_token");
         sessionStorage.removeItem("kimai_user");
         this.token = "";
@@ -137,6 +252,21 @@ export default () => ({
                 fetch(`${import.meta.env.VITE_KIMAI_API_URL}/activities`, { headers }),
                 fetch(`${import.meta.env.VITE_KIMAI_API_URL}/tags`, { headers }),
             ]);
+
+            if (
+                resCust.status === 401 ||
+                resProj.status === 401 ||
+                resAct.status === 401 ||
+                resTags.status === 401
+            ) {
+                this.logout();
+                this.showAlert(
+                    "Session Expired",
+                    "API token is expired or invalid. Please sign in again.",
+                    "error",
+                );
+                return;
+            }
 
             if (resCust.ok) this.customers = await resCust.json();
             if (resProj.ok) {
@@ -233,8 +363,10 @@ export default () => ({
 
     openModal() {
         this.formData.date = new Date().toISOString().split("T")[0];
-        this.formData.begin = "08:00";
-        this.formData.end = "17:00";
+        this.formData.begin = this.workConfig.startTime;
+        this.formData.end = this.workConfig.endTime;
+        this.formData.durationPreset = "2h";
+        this.formData.customDuration = 1;
         this.formData.description = "";
         this.formData.customer = "";
         this.formData.project = "";
@@ -248,6 +380,15 @@ export default () => ({
     },
 
     async saveRecord() {
+        if (!this.formData.durationPreset) {
+            this.showAlert(
+                "Validation Failed",
+                "Duration Present wajib diisi.",
+                "warning",
+            );
+            return;
+        }
+
         if (
             !this.formData.project ||
             !this.formData.activity ||
@@ -261,30 +402,32 @@ export default () => ({
             return;
         }
 
+        const cfg = this.workConfig;
         const dateStr = this.formData.date;
         let workStart = new Date(`${dateStr}T${this.formData.begin}:00`);
         let workEnd = new Date(`${dateStr}T${this.formData.end}:00`);
 
-        const lunchStart = new Date(`${dateStr}T12:00:00`);
-        const lunchEnd = new Date(`${dateStr}T13:00:00`);
-
-        let totalMs = workEnd - workStart;
-
-        let overlapStart = workStart > lunchStart ? workStart : lunchStart;
-        let overlapEnd = workEnd < lunchEnd ? workEnd : lunchEnd;
-        let lunchOverlapMs =
-            overlapStart < overlapEnd ? overlapEnd - overlapStart : 0;
-
-        let totalWorkHours = (totalMs - lunchOverlapMs) / (1000 * 60 * 60);
-
-        if (totalWorkHours !== 8) {
+        if (workStart >= workEnd) {
             this.showAlert(
                 "Invalid Duration",
-                `Total working hours must be exactly 8 hours. Calculated duration: <b>${totalWorkHours} hours</b>.`,
+                "Start time must be before end time.",
                 "warning",
             );
             return;
         }
+
+        const chunkHours = this.getChunkHours();
+        if (!chunkHours || chunkHours <= 0) {
+            this.showAlert(
+                "Validation Failed",
+                "Duration Present tidak valid.",
+                "warning",
+            );
+            return;
+        }
+
+        const lunchStart = new Date(`${dateStr}T${cfg.lunchStart}:00`);
+        const lunchEnd = new Date(`${dateStr}T${cfg.lunchEnd}:00`);
 
         Swal.fire({
             title: "Processing...",
@@ -306,13 +449,15 @@ export default () => ({
                     ? this.formData.tags.join(", ")
                     : "";
 
+            const chunkMs = chunkHours * 60 * 60 * 1000;
+
             while (current < finalEnd) {
                 if (current >= lunchStart && current < lunchEnd) {
                     current = new Date(lunchEnd);
                     continue;
                 }
 
-                let chunkEnd = new Date(current.getTime() + 2 * 60 * 60 * 1000);
+                let chunkEnd = new Date(current.getTime() + chunkMs);
 
                 if (current < lunchStart && chunkEnd > lunchStart) {
                     chunkEnd = new Date(lunchStart);
@@ -334,6 +479,10 @@ export default () => ({
                 });
 
                 current = new Date(chunkEnd);
+            }
+
+            if (payloads.length === 0) {
+                throw new Error("Tidak ada interval jam kerja yang valid untuk dikirim.");
             }
 
             let successCount = 0;
@@ -414,3 +563,4 @@ export default () => ({
         });
     },
 });
+
