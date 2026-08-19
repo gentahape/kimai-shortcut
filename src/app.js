@@ -25,8 +25,6 @@ export default () => ({
         { value: "1.5h", label: "1.5 Jam", hours: 1.5 },
         { value: "1h", label: "1 Jam", hours: 1 },
         { value: "30m", label: "30 Menit", hours: 0.5 },
-        { value: "full", label: "Full Day / Custom Range", hours: null },
-        { value: "custom", label: "Custom...", hours: null },
     ],
 
     getChunkHours() {

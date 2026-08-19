@@ -15,12 +15,12 @@
                     <svg class="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <div class="text-sm text-blue-200 leading-relaxed">
                         <span class="font-bold text-blue-100">Automated Chunking:</span>
-                        Seluruh jam kerja (<span x-text="formData.begin || workConfig.startTime"></span> – <span x-text="formData.end || workConfig.endTime"></span>) akan dibagi otomatis sesuai interval <em class="text-blue-300">Duration Present</em> dan melewati jam istirahat (<span x-text="workConfig.lunchStart"></span> – <span x-text="workConfig.lunchEnd"></span>).
+                        The entire work hours (<span x-text="formData.begin || workConfig.startTime"></span> &ndash; <span x-text="formData.end || workConfig.endTime"></span>) will be automatically split based on the <em class="text-blue-300">Duration Preset</em> interval, automatically skipping the lunch break (<span x-text="workConfig.lunchStart"></span> &ndash; <span x-text="workConfig.lunchEnd"></span>).
                     </div>
                 </div>
                 <template x-if="calculatedChunks.length > 0">
                     <div class="mt-1 text-xs font-mono text-blue-300 flex flex-wrap gap-1.5 items-center">
-                        <span class="font-sans font-semibold text-blue-200">Pembagian Slot:</span>
+                        <span class="font-sans font-semibold text-blue-200">Generated Slots:</span>
                         <template x-for="slot in calculatedChunks" :key="slot">
                             <span class="bg-blue-950/90 text-blue-200 px-2 py-0.5 rounded border border-blue-600/60 shadow-sm" x-text="slot"></span>
                         </template>
@@ -28,25 +28,13 @@
                 </template>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">Duration Present <span class="text-red-500">*</span></label>
-                    <select x-ref="durationSelect" x-model="formData.durationPreset" @change="onPresetChange()" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer">
-                        <template x-for="p in durationPresets" :key="p.value">
-                            <option :value="p.value" x-text="p.label"></option>
-                        </template>
-                    </select>
-                </div>
-                <div x-show="formData.durationPreset === 'full'" x-cloak>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">Duration Time (Jam) <span class="text-red-500">*</span></label>
-                    <input type="number" x-model="formData.durationTime" min="0.25" max="2" step="0.25" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g. 1">
-                    <p class="mt-1 text-xs text-gray-400">Durasi per task (maksimal 2 jam).</p>
-                </div>
-                <div x-show="formData.durationPreset === 'custom'" x-cloak>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">Custom Duration (Jam) <span class="text-red-500">*</span></label>
-                    <input type="number" x-model="formData.customDuration" min="0.25" max="2" step="0.25" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g. 1.5">
-                    <p class="mt-1 text-xs text-gray-400">Durasi per task (maksimal 2 jam).</p>
-                </div>
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-300">Duration Present <span class="text-red-500">*</span></label>
+                <select x-ref="durationSelect" x-model="formData.durationPreset" @change="onPresetChange()" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer">
+                    <template x-for="p in durationPresets" :key="p.value">
+                        <option :value="p.value" x-text="p.label"></option>
+                    </template>
+                </select>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -240,4 +228,4 @@
             <button @click="saveRecord" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm px-5 py-2.5 transition shadow-lg cursor-pointer">Save</button>
         </div>
     </div>
-</div>
+</div>
