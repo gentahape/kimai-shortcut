@@ -15,13 +15,17 @@ export default () => ({
         project: "",
         activity: "",
         tags: [],
-        durationPreset: "2h",
+        durationPreset: "4h",
         customDuration: 1,
         durationTime: 1,
     },
 
     durationPresets: [
-        { value: "2h", label: "2 Jam (Default)", hours: 2 },
+        { value: "4h", label: "4 Jam (Default)", hours: 4 },
+        { value: "3.5h", label: "3.5 Jam", hours: 3.5 },
+        { value: "3h", label: "3 Jam", hours: 3 },
+        { value: "2.5h", label: "2.5 Jam", hours: 2.5 },
+        { value: "2h", label: "2 Jam", hours: 2 },
         { value: "1.5h", label: "1.5 Jam", hours: 1.5 },
         { value: "1h", label: "1 Jam", hours: 1 },
         { value: "30m", label: "30 Menit", hours: 0.5 },
@@ -31,7 +35,7 @@ export default () => ({
         const preset = this.durationPresets.find(
             (p) => p.value === this.formData.durationPreset,
         );
-        if (!preset) return 2;
+        if (!preset) return 4;
 
         if (preset.value === "full") {
             return Number(this.formData.durationTime) || 1;
@@ -41,7 +45,7 @@ export default () => ({
             return Number(this.formData.customDuration) || 1;
         }
 
-        return preset.hours || 2;
+        return preset.hours || 4;
     },
 
     get calculatedChunks() {
@@ -115,7 +119,7 @@ export default () => ({
             endTime: import.meta.env.VITE_WORK_END_TIME || "17:00",
             lunchStart: import.meta.env.VITE_LUNCH_START || "12:00",
             lunchEnd: import.meta.env.VITE_LUNCH_END || "13:00",
-            chunkHours: Number(import.meta.env.VITE_CHUNK_HOURS) || 2,
+            chunkHours: Number(import.meta.env.VITE_CHUNK_HOURS) || 4,
             get expectedWorkHours() {
                 // Calculate expected hours: (end - start) minus lunch duration
                 const [sh, sm] = this.startTime.split(":").map(Number);
@@ -367,7 +371,7 @@ export default () => ({
         this.formData.date = new Date().toISOString().split("T")[0];
         this.formData.begin = this.workConfig.startTime;
         this.formData.end = this.workConfig.endTime;
-        this.formData.durationPreset = "2h";
+        this.formData.durationPreset = "4h";
         this.formData.customDuration = 1;
         this.formData.durationTime = 1;
         this.formData.description = "";
@@ -429,10 +433,10 @@ export default () => ({
             return;
         }
 
-        if (chunkHours > 2) {
+        if (chunkHours > 4) {
             this.showAlert(
                 "Validation Failed",
-                "Durasi per task di Kimai tidak boleh lebih dari 2 jam (maksimal 2 jam).",
+                "Durasi per task di Kimai tidak boleh lebih dari 4 jam (maksimal 4 jam).",
                 "warning",
             );
             return;

@@ -38,7 +38,7 @@ This project relies on the following libraries and tools:
    VITE_WORK_END_TIME=17:00
    VITE_LUNCH_START=12:00
    VITE_LUNCH_END=13:00
-   VITE_CHUNK_HOURS=2
+   VITE_CHUNK_HOURS=4
    ```
 
 ## Usage
@@ -74,7 +74,7 @@ The work schedule is fully configurable via environment variables. Simply update
 | `VITE_WORK_END_TIME` | `17:00` | Work end time (HH:MM) |
 | `VITE_LUNCH_START` | `12:00` | Lunch break start (HH:MM) |
 | `VITE_LUNCH_END` | `13:00` | Lunch break end (HH:MM) |
-| `VITE_CHUNK_HOURS` | `2` | Timesheet chunk size in hours |
+| `VITE_CHUNK_HOURS` | `4` | Timesheet chunk size in hours |
 
 **Examples:**
 
