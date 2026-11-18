@@ -1,342 +1,344 @@
-import Swal from "sweetalert2";
+import { DURATION_PRESETS, getWorkConfig } from "./constants/presets.js";
+import { getCurrentSession, login as authLogin, logout as authLogout } from "./services/authService.js";
+import { fetchMasterData } from "./services/masterDataService.js";
+import { getTimesheets, getTimesheet, createTimesheet, updateTimesheet, deleteTimesheet } from "./services/timesheetService.js";
+import { getInitialTheme, toggleTheme as svcToggleTheme } from "./services/themeService.js";
+import { parseHash, navigate as routerNavigate } from "./router.js";
+import {
+    showSuccess,
+    showError,
+    showWarning,
+    showLoading,
+    updateLoadingText,
+    closeAlert,
+    showConfirm,
+} from "./utils/alert.js";
+import { calculateTimeSlots, generateTimesheetPayloads, getChunkHoursFromPreset, calculateEndTime } from "./utils/timeChunker.js";
+import { formatDuration } from "./utils/formatters.js";
 
 export default () => ({
+    // Auth & User State
     token: "",
     isAuthenticated: false,
-    isLoading: false,
+    isLoadingAuth: false,
     user: {},
-    isModalOpen: false,
-    formData: {
-        date: "",
-        begin: "",
-        end: "",
-        description: "",
-        customer: "",
-        project: "",
-        activity: "",
-        tags: [],
-        durationPreset: "4h",
-        customDuration: 1,
-        durationTime: 1,
-    },
 
-    durationPresets: [
-        { value: "4h", label: "4 Jam (Default)", hours: 4 },
-        { value: "3.5h", label: "3.5 Jam", hours: 3.5 },
-        { value: "3h", label: "3 Jam", hours: 3 },
-        { value: "2.5h", label: "2.5 Jam", hours: 2.5 },
-        { value: "2h", label: "2 Jam", hours: 2 },
-        { value: "1.5h", label: "1.5 Jam", hours: 1.5 },
-        { value: "1h", label: "1 Jam", hours: 1 },
-        { value: "30m", label: "30 Menit", hours: 0.5 },
-    ],
+    // Theme ('dark' | 'light')
+    theme: getInitialTheme(),
 
-    getChunkHours() {
-        const preset = this.durationPresets.find(
-            (p) => p.value === this.formData.durationPreset,
-        );
-        if (!preset) return 4;
+    // Router State
+    currentRoute: { view: "list", id: null },
 
-        if (preset.value === "full") {
-            return Number(this.formData.durationTime) || 1;
-        }
-
-        if (preset.value === "custom") {
-            return Number(this.formData.customDuration) || 1;
-        }
-
-        return preset.hours || 4;
-    },
-
-    get calculatedChunks() {
-        if (!this.formData.begin || !this.formData.end) return [];
-        const dateStr = this.formData.date || "2000-01-01";
-        const workStart = new Date(`${dateStr}T${this.formData.begin}:00`);
-        const workEnd = new Date(`${dateStr}T${this.formData.end}:00`);
-        if (workStart >= workEnd) return [];
-
-        const cfg = this.workConfig;
-        const lunchStart = new Date(`${dateStr}T${cfg.lunchStart}:00`);
-        const lunchEnd = new Date(`${dateStr}T${cfg.lunchEnd}:00`);
-
-        const chunkHours = this.getChunkHours();
-        const chunkMs = chunkHours * 60 * 60 * 1000;
-
-        let current = new Date(workStart);
-        const finalEnd = new Date(workEnd);
-        const slots = [];
-
-        while (current < finalEnd) {
-            if (current >= lunchStart && current < lunchEnd) {
-                current = new Date(lunchEnd);
-                continue;
-            }
-
-            let chunkEnd = new Date(current.getTime() + chunkMs);
-
-            if (current < lunchStart && chunkEnd > lunchStart) {
-                chunkEnd = new Date(lunchStart);
-            }
-
-            if (chunkEnd > finalEnd) {
-                chunkEnd = new Date(finalEnd);
-            }
-
-            if (current.getTime() === chunkEnd.getTime()) break;
-
-            const bStr = current.toTimeString().substring(0, 5);
-            const eStr = chunkEnd.toTimeString().substring(0, 5);
-            slots.push(`${bStr}–${eStr}`);
-
-            current = new Date(chunkEnd);
-        }
-        return slots;
-    },
-
-    onPresetChange() {
-        // Changing duration preset adjusts the chunking interval.
-        // Begin and End times remain default work hours (08:00 - 17:00).
-    },
-
+    // Master Data
     customers: [],
     projects: [],
     activities: [],
     availableTags: [],
+    isLoadingMasterData: false,
 
+    // Timesheets List State
     timesheets: [],
+    isLoadingTimesheets: false,
     searchQuery: "",
     currentPage: 1,
     itemsPerPage: 10,
 
-    /**
-     * Single source of truth for all work schedule configuration.
-     * All values are read from VITE_* environment variables with sensible defaults.
-     * To change the work schedule, simply update the .env file — no code changes needed.
-     */
+    // Add Page State (Dynamic Multiple Forms)
+    addForms: [],
+    isSubmittingAdd: false,
+
+    // Edit Page State (Single Form)
+    editForm: {
+        id: null,
+        date: "",
+        begin: "",
+        end: "",
+        customer: "",
+        project: "",
+        activity: "",
+        description: "",
+        tags: [],
+    },
+    isLoadingEdit: false,
+    isSubmittingEdit: false,
+
+    // Constants & Configurations
+    durationPresets: DURATION_PRESETS,
     get workConfig() {
-        return {
-            startTime: import.meta.env.VITE_WORK_START_TIME || "08:00",
-            endTime: import.meta.env.VITE_WORK_END_TIME || "17:00",
-            lunchStart: import.meta.env.VITE_LUNCH_START || "12:00",
-            lunchEnd: import.meta.env.VITE_LUNCH_END || "13:00",
-            chunkHours: Number(import.meta.env.VITE_CHUNK_HOURS) || 4,
-            get expectedWorkHours() {
-                // Calculate expected hours: (end - start) minus lunch duration
-                const [sh, sm] = this.startTime.split(":").map(Number);
-                const [eh, em] = this.endTime.split(":").map(Number);
-                const [lh, lm] = this.lunchStart.split(":").map(Number);
-                const [leH, leM] = this.lunchEnd.split(":").map(Number);
-                const totalMin = (eh * 60 + em) - (sh * 60 + sm);
-                const lunchMin = (leH * 60 + leM) - (lh * 60 + lm);
-                return (totalMin - lunchMin) / 60;
-            },
-        };
+        return getWorkConfig();
     },
 
+    /**
+     * Cache for loaded partial templates.
+     */
+    _partialCache: {},
+
+    /**
+     * Load an HTML partial template with caching.
+     * @param {string} url
+     * @returns {Promise<string>}
+     */
     async loadPartial(url) {
+        if (this._partialCache[url]) {
+            return this._partialCache[url];
+        }
         try {
             const response = await fetch(url);
-            if (!response.ok) throw new Error(`Failed to load ${url}`);
-            return await response.text();
+            if (!response.ok) throw new Error(`Gagal memuat template: ${url}`);
+            const html = await response.text();
+            this._partialCache[url] = html;
+            return html;
         } catch (error) {
             console.error(error);
-            return `<div class="text-red-500">Error loading component.</div>`;
+            return `<div class="p-4 text-sm text-red-500 bg-red-50 dark:bg-red-950/30 rounded-lg">Error loading component ${url}</div>`;
         }
     },
 
+    /**
+     * Component Lifecycle Init.
+     */
     init() {
         this.checkSession();
-        if (this.isAuthenticated) {
-            this.fetchMasterData();
-            this.fetchTimesheets();
-        }
 
+        // Listen for unauthorized session expiration events from API client
+        window.addEventListener("kimai:session-expired", () => {
+            this.logout();
+            showError("Sesi Berakhir", "Token API Anda tidak valid atau telah kedaluwarsa. Silakan sign in kembali.");
+        });
+
+        // Setup Hash Change Listener
+        window.addEventListener("hashchange", () => {
+            this.handleRouteChange();
+        });
+
+        // Initialize Route based on current hash
+        this.handleRouteChange();
+
+        // Reset pagination when searching
         this.$watch("searchQuery", () => {
             this.currentPage = 1;
         });
+
+        if (this.isAuthenticated) {
+            this.loadInitialData();
+        }
     },
 
-    checkSession() {
-        const savedUser = localStorage.getItem("kimai_user");
-        const savedToken = localStorage.getItem("kimai_token");
-        if (savedUser && savedToken) {
-            try {
-                this.user = JSON.parse(savedUser);
-                this.token = savedToken;
-                this.isAuthenticated = true;
-            } catch (e) {
-                this.logout();
+    /**
+     * Handle Hash-based Route changes.
+     */
+    handleRouteChange() {
+        const route = parseHash();
+        this.currentRoute = route;
+
+        if (route.view === "add") {
+            if (this.addForms.length === 0) {
+                this.initAddForm();
+            }
+        } else if (route.view === "edit") {
+            if (route.id) {
+                this.loadEditTimesheet(route.id);
+            } else {
+                this.navigate("");
             }
         }
     },
 
+    /**
+     * Navigate to a route hash.
+     * @param {string} path - e.g. '', 'add', 'edit/123'
+     */
+    navigate(path) {
+        routerNavigate(path);
+    },
+
+    /**
+     * Toggle Light/Dark mode.
+     */
+    toggleTheme() {
+        this.theme = svcToggleTheme();
+    },
+
+    /**
+     * Check if a valid session exists in storage.
+     */
+    checkSession() {
+        const session = getCurrentSession();
+        this.token = session.token;
+        this.user = session.user || {};
+        this.isAuthenticated = session.isAuthenticated;
+    },
+
+    /**
+     * Load Master Data & Timesheets together.
+     */
+    async loadInitialData() {
+        await Promise.all([
+            this.fetchMasterData(),
+            this.fetchTimesheets(),
+        ]);
+    },
+
+    /**
+     * Log in using API Bearer Token.
+     */
     async login() {
         if (!this.token.trim()) {
-            this.showAlert(
-                "Access Denied",
-                "Token cannot be empty!",
-                "warning",
-            );
+            showWarning("Akses Ditolak", "Token tidak boleh kosong!");
             return;
         }
-        this.isLoading = true;
+
+        this.isLoadingAuth = true;
         try {
-            const response = await fetch(`${import.meta.env.VITE_KIMAI_API_URL}/users/me`, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${this.token}`,
-                    Accept: "application/json",
-                },
-            });
-            if (response.status === 401)
-                throw new Error("Unauthorized: Token is missing or invalid.");
-            if (!response.ok)
-                throw new Error(
-                    `Server error occurred (Error ${response.status})`,
-                );
-
-            const userData = await response.json();
-            const essentialUser = {
-                id: userData.id,
-                username: userData.username,
-                alias: userData.alias || userData.username,
-                title: userData.title || "",
-                avatar: userData.avatar || "",
-                "color-safe": userData["color-safe"] || userData.color || "#4F46E5",
-            };
-
-            localStorage.setItem("kimai_token", this.token);
-            localStorage.setItem("kimai_user", JSON.stringify(essentialUser));
-
-            this.user = essentialUser;
+            const user = await authLogin(this.token);
+            this.user = user;
             this.isAuthenticated = true;
 
-            Swal.fire({
-                title: "Sign In Successful",
-                text: "Token verified successfully!",
-                icon: "success",
-                background: "#1F2937",
-                color: "#fff",
-                showConfirmButton: false,
-                timer: 1500,
-            });
+            showSuccess("Sign In Berhasil", `Selamat datang kembali, ${user.alias || user.username}!`, 2000);
 
-            this.fetchMasterData();
-            this.fetchTimesheets();
+            await this.loadInitialData();
         } catch (error) {
-            this.showAlert("Authentication Failed", error.message, "error");
+            showError("Autentikasi Gagal", error.message);
         } finally {
-            this.isLoading = false;
+            this.isLoadingAuth = false;
         }
     },
 
+    /**
+     * Log out and reset app state.
+     */
     logout() {
-        localStorage.removeItem("kimai_token");
-        localStorage.removeItem("kimai_user");
-        sessionStorage.removeItem("kimai_token");
-        sessionStorage.removeItem("kimai_user");
+        authLogout();
         this.token = "";
         this.user = {};
+        this.isAuthenticated = false;
         this.customers = [];
         this.projects = [];
         this.activities = [];
         this.availableTags = [];
         this.timesheets = [];
         this.searchQuery = "";
-        this.isAuthenticated = false;
+        this.addForms = [];
+        this.navigate("");
     },
 
+    /**
+     * Fetch master data options for dropdowns.
+     */
     async fetchMasterData() {
+        if (!this.token) return;
+        this.isLoadingMasterData = true;
         try {
-            const headers = {
-                Authorization: `Bearer ${this.token}`,
-                Accept: "application/json",
-            };
-            const [resCust, resProj, resAct, resTags] = await Promise.all([
-                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/customers`, { headers }),
-                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/projects`, { headers }),
-                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/activities`, { headers }),
-                fetch(`${import.meta.env.VITE_KIMAI_API_URL}/tags`, { headers }),
-            ]);
-
-            if (
-                resCust.status === 401 ||
-                resProj.status === 401 ||
-                resAct.status === 401 ||
-                resTags.status === 401
-            ) {
-                this.logout();
-                this.showAlert(
-                    "Session Expired",
-                    "API token is expired or invalid. Please sign in again.",
-                    "error",
-                );
-                return;
-            }
-
-            if (resCust.ok) this.customers = await resCust.json();
-            if (resProj.ok) {
-                const rawProjects = await resProj.json();
-                this.projects = rawProjects.map((p) => ({
-                    id: p.id,
-                    name: p.parentTitle
-                        ? `${p.parentTitle} | ${p.name}`
-                        : p.name,
-                }));
-            }
-            if (resAct.ok) this.activities = await resAct.json();
-            if (resTags.ok) this.availableTags = await resTags.json();
+            const data = await fetchMasterData(this.token);
+            this.customers = data.customers;
+            this.projects = data.projects;
+            this.activities = data.activities;
+            this.availableTags = data.availableTags;
         } catch (error) {
-            console.error(error);
-            this.showAlert(
-                "Warning",
-                "Failed to load some dropdown options.",
-                "warning",
-            );
+            console.error("Master data error:", error);
+        } finally {
+            this.isLoadingMasterData = false;
         }
     },
 
+    /**
+     * Fetch timesheets for list view.
+     */
     async fetchTimesheets() {
+        if (!this.token) return;
+        this.isLoadingTimesheets = true;
         try {
-            const response = await fetch(`${import.meta.env.VITE_KIMAI_API_URL}/timesheets`, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${this.token}`,
-                    Accept: "application/json",
-                },
-            });
-            if (response.status === 401) {
-                this.logout();
-                this.showAlert(
-                    "Session Expired",
-                    "API token is expired or invalid.",
-                    "error",
-                );
-                return;
-            }
-            if (!response.ok) throw new Error("Failed to load timesheet data.");
-            this.timesheets = await response.json();
+            const data = await getTimesheets(this.token);
+            this.timesheets = data;
         } catch (error) {
-            this.showAlert("Error", error.message, "error");
+            showError("Gagal Memuat Timesheet", error.message);
+        } finally {
+            this.isLoadingTimesheets = false;
         }
     },
+
+    /**
+     * Format project name with fallback.
+     */
+    getProjectName(projectRef) {
+        if (!projectRef) return "-";
+        if (typeof projectRef === "object" && projectRef.name) {
+            return projectRef.parentTitle
+                ? `${projectRef.parentTitle} | ${projectRef.name}`
+                : projectRef.name;
+        }
+        const found = this.projects.find((p) => String(p.id) === String(projectRef));
+        return found ? found.name : `Project #${projectRef}`;
+    },
+
+    /**
+     * Format activity name with fallback.
+     */
+    getActivityName(activityRef) {
+        if (!activityRef) return "-";
+        if (typeof activityRef === "object" && activityRef.name) {
+            return activityRef.name;
+        }
+        const found = this.activities.find((a) => String(a.id) === String(activityRef));
+        return found ? found.name : `Activity #${activityRef}`;
+    },
+
+    /**
+     * Format duration seconds to human-readable string.
+     */
+    getFormattedDuration(seconds) {
+        return formatDuration(seconds);
+    },
+
+    /**
+     * Delete a timesheet record with confirmation.
+     * @param {number|string} id
+     */
+    async deleteTimesheetRecord(id) {
+        const confirmed = await showConfirm(
+            "Hapus Catatan Timesheet?",
+            "Data timesheet yang dihapus tidak dapat dipulihkan kembali.",
+            "Ya, Hapus Data",
+            "warning"
+        );
+        if (!confirmed) return;
+
+        showLoading("Menghapus...", "Sedang menghapus catatan timesheet...");
+        try {
+            await deleteTimesheet(id, this.token);
+            closeAlert();
+            showSuccess("Berhasil Dihapus", "Catatan timesheet telah dihapus.", 2000);
+            this.fetchTimesheets();
+        } catch (error) {
+            closeAlert();
+            showError("Gagal Menghapus", error.message);
+        }
+    },
+
+    // --- Timesheets List Computed & Pagination ---
 
     get filteredTimesheets() {
-        if (this.searchQuery === "") return this.timesheets;
-        const q = this.searchQuery.toLowerCase();
+        if (!this.searchQuery.trim()) return this.timesheets;
+        const q = this.searchQuery.toLowerCase().trim();
         return this.timesheets.filter((row) => {
+            const desc = (row.description || "").toLowerCase();
+            const dateStr = (row.begin || "").toLowerCase();
+            const projName = this.getProjectName(row.project).toLowerCase();
+            const actName = this.getActivityName(row.activity).toLowerCase();
+            const tags = Array.isArray(row.tags) ? row.tags.join(" ").toLowerCase() : "";
+
             return (
-                (row.description &&
-                    row.description.toLowerCase().includes(q)) ||
-                (row.begin && row.begin.includes(q))
+                desc.includes(q) ||
+                dateStr.includes(q) ||
+                projName.includes(q) ||
+                actName.includes(q) ||
+                tags.includes(q)
             );
         });
     },
 
     get totalPages() {
-        return (
-            Math.ceil(this.filteredTimesheets.length / this.itemsPerPage) || 1
-        );
+        return Math.ceil(this.filteredTimesheets.length / this.itemsPerPage) || 1;
     },
 
     get paginatedTimesheets() {
@@ -360,223 +362,428 @@ export default () => ({
     nextPage() {
         if (this.currentPage < this.totalPages) this.currentPage++;
     },
+
     prevPage() {
         if (this.currentPage > 1) this.currentPage--;
     },
+
     goToPage(page) {
         this.currentPage = page;
     },
 
-    openModal() {
-        this.formData.date = new Date().toISOString().split("T")[0];
-        this.formData.begin = this.workConfig.startTime;
-        this.formData.end = this.workConfig.endTime;
-        this.formData.durationPreset = "4h";
-        this.formData.customDuration = 1;
-        this.formData.durationTime = 1;
-        this.formData.description = "";
-        this.formData.customer = "";
-        this.formData.project = "";
-        this.formData.activity = "";
-        this.formData.tags = [];
-        this.isModalOpen = true;
+    // --- Add Page (Dynamic Multiple Forms) Methods ---
+
+    /**
+     * Create an empty form item object with sensible defaults.
+     * @param {object} [preset={}]
+     * @returns {object}
+     */
+    createEmptyForm(preset = {}) {
+        const begin = preset.begin || this.workConfig.startTime;
+        const durationPreset = preset.durationPreset || "4h";
+        const chunkHours = getChunkHoursFromPreset(durationPreset);
+        const calculatedEnd = calculateEndTime(
+            begin,
+            chunkHours,
+            this.workConfig.lunchStart,
+            this.workConfig.lunchEnd
+        );
+
+        return {
+            _id: "form_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+            date: preset.date || new Date().toISOString().split("T")[0],
+            begin: begin,
+            end: preset.end || calculatedEnd,
+            durationPreset: durationPreset,
+            customer: preset.customer || "",
+            project: preset.project || "",
+            activity: preset.activity || "",
+            description: preset.description || "",
+            tags: preset.tags ? [...preset.tags] : [],
+        };
     },
 
-    closeModal() {
-        this.isModalOpen = false;
+    /**
+     * Handle duration preset change: automatically adjust end time.
+     * @param {object} form
+     */
+    onFormPresetChange(form) {
+        if (!form) return;
+        const hours = getChunkHoursFromPreset(form.durationPreset);
+        form.end = calculateEndTime(
+            form.begin,
+            hours,
+            this.workConfig.lunchStart,
+            this.workConfig.lunchEnd
+        );
     },
 
-    async saveRecord() {
-        if (!this.formData.durationPreset) {
-            this.showAlert(
-                "Validation Failed",
-                "Duration Present wajib diisi.",
-                "warning",
-            );
-            return;
-        }
+    /**
+     * Handle start time change: automatically adjust end time based on selected preset.
+     * @param {object} form
+     */
+    onFormBeginChange(form) {
+        if (!form || !form.durationPreset) return;
+        const hours = getChunkHoursFromPreset(form.durationPreset);
+        form.end = calculateEndTime(
+            form.begin,
+            hours,
+            this.workConfig.lunchStart,
+            this.workConfig.lunchEnd
+        );
+    },
 
-        if (
-            !this.formData.project ||
-            !this.formData.activity ||
-            !this.formData.description
-        ) {
-            this.showAlert(
-                "Validation Failed",
-                "Please ensure all required fields (*) are filled.",
-                "warning",
-            );
-            return;
-        }
+    /**
+     * Initialize Add Page with at least 1 empty form.
+     */
+    initAddForm() {
+        this.addForms = [this.createEmptyForm()];
+    },
 
-        const cfg = this.workConfig;
-        const dateStr = this.formData.date;
-        let workStart = new Date(`${dateStr}T${this.formData.begin}:00`);
-        let workEnd = new Date(`${dateStr}T${this.formData.end}:00`);
-
-        if (workStart >= workEnd) {
-            this.showAlert(
-                "Invalid Duration",
-                "Start time must be before end time.",
-                "warning",
-            );
-            return;
-        }
-
-        const chunkHours = this.getChunkHours();
-        if (!chunkHours || chunkHours <= 0) {
-            this.showAlert(
-                "Validation Failed",
-                "Duration Present tidak valid.",
-                "warning",
-            );
-            return;
-        }
-
-        if (chunkHours > 4) {
-            this.showAlert(
-                "Validation Failed",
-                "Durasi per task di Kimai tidak boleh lebih dari 4 jam (maksimal 4 jam).",
-                "warning",
-            );
-            return;
-        }
-
-        const lunchStart = new Date(`${dateStr}T${cfg.lunchStart}:00`);
-        const lunchEnd = new Date(`${dateStr}T${cfg.lunchEnd}:00`);
-
-        Swal.fire({
-            title: "Processing...",
-            text: "Splitting and sending timesheet data...",
-            allowOutsideClick: false,
-            background: "#1F2937",
-            color: "#fff",
-            didOpen: () => {
-                Swal.showLoading();
-            },
+    /**
+     * Add another form entry to the dynamic forms array.
+     */
+    addAnotherForm() {
+        // Inherit date and customer/project from previous form as convenience if available
+        const lastForm = this.addForms[this.addForms.length - 1];
+        const newForm = this.createEmptyForm({
+            date: lastForm?.date,
+            customer: lastForm?.customer,
+            project: lastForm?.project,
         });
+        this.addForms.push(newForm);
+    },
+
+    /**
+     * Remove a form entry by index.
+     * @param {number} index
+     */
+    removeForm(index) {
+        if (this.addForms.length <= 1) return;
+        this.addForms.splice(index, 1);
+    },
+
+    /**
+     * Duplicate a form entry by index.
+     * @param {number} index
+     */
+    duplicateForm(index) {
+        const source = this.addForms[index];
+        if (!source) return;
+        const cloned = {
+            ...this.createEmptyForm(source),
+            description: source.description,
+            tags: [...source.tags],
+            durationPreset: source.durationPreset,
+            activity: source.activity,
+        };
+        this.addForms.splice(index + 1, 0, cloned);
+    },
+
+    /**
+     * Calculate display slots for a specific form item.
+     * @param {object} form
+     * @returns {string[]}
+     */
+    getFormSlots(form) {
+        return calculateTimeSlots({
+            date: form.date,
+            begin: form.begin,
+            end: form.end,
+            chunkHours: getChunkHoursFromPreset(form.durationPreset),
+            lunchStart: this.workConfig.lunchStart,
+            lunchEnd: this.workConfig.lunchEnd,
+        });
+    },
+
+    /**
+     * Total estimated chunk records across all active forms.
+     * @returns {number}
+     */
+    getTotalEstimatedChunks() {
+        return this.addForms.reduce((sum, f) => sum + this.getFormSlots(f).length, 0);
+    },
+
+    /**
+     * Submit all dynamic forms sequentially.
+     * Prioritas Utama: Kimai API creates 1 timesheet per request.
+     * We validate all forms first, generate chunk payloads, then loop asynchronously
+     * with detailed progress tracking and error resilience.
+     */
+    async submitAllForms() {
+        if (this.addForms.length === 0) {
+            showWarning("Form Kosong", "Silakan tambahkan setidaknya satu form timesheet.");
+            return;
+        }
+
+        // --- Step 1: Validate all forms ---
+        for (let i = 0; i < this.addForms.length; i++) {
+            const form = this.addForms[i];
+            const formNumber = i + 1;
+
+            if (!form.project || !form.activity || !form.description.trim()) {
+                showWarning(
+                    "Validasi Gagal",
+                    `Form #${formNumber} belum lengkap. Pastikan Project, Activity, dan Description telah diisi.`
+                );
+                return;
+            }
+
+            if (!form.date || !form.begin || !form.end) {
+                showWarning(
+                    "Validasi Gagal",
+                    `Form #${formNumber} memiliki tanggal atau jam kerja yang belum diisi.`
+                );
+                return;
+            }
+
+            const workStart = new Date(`${form.date}T${form.begin}:00`);
+            const workEnd = new Date(`${form.date}T${form.end}:00`);
+            if (workStart >= workEnd) {
+                showWarning(
+                    "Validasi Jam Kerja",
+                    `Form #${formNumber}: Waktu mulai (${form.begin}) harus lebih awal dari waktu selesai (${form.end}).`
+                );
+                return;
+            }
+
+            const chunkHours = getChunkHoursFromPreset(form.durationPreset);
+            if (chunkHours > 4) {
+                showWarning(
+                    "Validasi Durasi",
+                    `Form #${formNumber}: Durasi per task di Kimai maksimal 4 jam.`
+                );
+                return;
+            }
+
+            const slots = this.getFormSlots(form);
+            if (slots.length === 0) {
+                showWarning(
+                    "Interval Tidak Valid",
+                    `Form #${formNumber}: Tidak ada interval jam kerja yang valid untuk dikirim (mungkin bertepatan dengan jam istirahat).`
+                );
+                return;
+            }
+        }
+
+        // --- Step 2: Generate All Payloads ---
+        const allTasks = [];
+        try {
+            for (let i = 0; i < this.addForms.length; i++) {
+                const form = this.addForms[i];
+                const chunks = generateTimesheetPayloads(form, this.workConfig);
+                for (const chunk of chunks) {
+                    allTasks.push({
+                        formIndex: i,
+                        formNumber: i + 1,
+                        displaySlot: chunk.displaySlot,
+                        payload: chunk.payload,
+                    });
+                }
+            }
+        } catch (genError) {
+            showError("Kesalahan Payload", genError.message);
+            return;
+        }
+
+        if (allTasks.length === 0) {
+            showWarning("Tidak Ada Data", "Tidak ada interval jam kerja yang valid untuk dikirim.");
+            return;
+        }
+
+        // --- Step 3: Sequential Asynchronous Submission Loop ---
+        this.isSubmittingAdd = true;
+        showLoading(
+            "Menyimpan Timesheet...",
+            `Mempersiapkan pengiriman ${allTasks.length} catatan timesheet...`
+        );
+
+        let successCount = 0;
+        const failedFormIndices = new Set();
+        const errorDetails = [];
 
         try {
-            let current = new Date(workStart);
-            const finalEnd = new Date(workEnd);
-            const payloads = [];
-            const tagsString =
-                this.formData.tags.length > 0
-                    ? this.formData.tags.join(", ")
-                    : "";
+            for (let i = 0; i < allTasks.length; i++) {
+                const task = allTasks[i];
+                const currentStep = i + 1;
 
-            const chunkMs = chunkHours * 60 * 60 * 1000;
-
-            while (current < finalEnd) {
-                if (current >= lunchStart && current < lunchEnd) {
-                    current = new Date(lunchEnd);
-                    continue;
-                }
-
-                let chunkEnd = new Date(current.getTime() + chunkMs);
-
-                if (current < lunchStart && chunkEnd > lunchStart) {
-                    chunkEnd = new Date(lunchStart);
-                }
-
-                if (chunkEnd > finalEnd) {
-                    chunkEnd = new Date(finalEnd);
-                }
-
-                if (current.getTime() === chunkEnd.getTime()) break;
-
-                payloads.push({
-                    begin: current.toISOString(),
-                    end: chunkEnd.toISOString(),
-                    project: parseInt(this.formData.project),
-                    activity: parseInt(this.formData.activity),
-                    description: this.formData.description,
-                    tags: tagsString,
-                });
-
-                current = new Date(chunkEnd);
-            }
-
-            if (payloads.length === 0) {
-                throw new Error("Tidak ada interval jam kerja yang valid untuk dikirim.");
-            }
-
-            let successCount = 0;
-
-            for (const payload of payloads) {
-                const response = await fetch(
-                    `${import.meta.env.VITE_KIMAI_API_URL}/timesheets`,
-                    {
-                        method: "POST",
-                        headers: {
-                            Authorization: `Bearer ${this.token}`,
-                            "Content-Type": "application/json",
-                            Accept: "application/json",
-                        },
-                        body: JSON.stringify(payload),
-                    },
+                updateLoadingText(
+                    "Menyimpan Timesheet...",
+                    `Menyimpan data ${currentStep} dari ${allTasks.length} [Form #${task.formNumber} (${task.displaySlot})]...`
                 );
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-
-                    if (
-                        response.status === 400 &&
-                        errorData.errors &&
-                        errorData.errors.errors
-                    ) {
-                        const errorMessages =
-                            errorData.errors.errors.join("<br> • ");
-                        throw new Error(
-                            `Validation Error on chunk <b>${payload.begin.substring(11, 16)}</b> to <b>${payload.end.substring(11, 16)}</b>:<br> • ${errorMessages}`,
-                        );
-                    }
-
-                    throw new Error(
-                        errorData.message ||
-                            `Server error (${response.status})`,
-                    );
+                try {
+                    await createTimesheet(task.payload, this.token);
+                    successCount++;
+                } catch (err) {
+                    console.error("Failed to save chunk:", task, err);
+                    failedFormIndices.add(task.formIndex);
+                    errorDetails.push(`Form #${task.formNumber} [${task.displaySlot}]: ${err.message}`);
                 }
-
-                successCount++;
             }
 
-            this.closeModal();
+            closeAlert();
 
-            Swal.fire({
-                title: "Success!",
-                text: `${successCount} records created successfully.`,
-                icon: "success",
-                background: "#1F2937",
-                color: "#fff",
-                timer: 5000,
-                showConfirmButton: false,
-            }).then(() => {
+            // --- Step 4: Handle Results & Feedback ---
+            if (failedFormIndices.size === 0) {
+                // Total Success!
+                await showSuccess(
+                    "Penyimpanan Berhasil!",
+                    `Semua ${successCount} catatan timesheet berhasil disimpan ke Kimai.`,
+                    3000
+                );
+                // Reset add forms to 1 clean form
+                this.initAddForm();
+                // Refresh list and navigate back
                 this.fetchTimesheets();
-            });
-        } catch (error) {
-            console.error("Submit Error:", error);
-            Swal.fire({
-                title: "Failed to Save",
-                html: `<div class="text-left text-sm text-gray-300 mt-2">${error.message}</div>`,
-                icon: "error",
-                background: "#1F2937",
-                color: "#fff",
-                confirmButtonColor: "#DC2626",
-            });
+                this.navigate("");
+            } else {
+                // Partial or Complete Failure
+                // Keep only the failed forms so user doesn't lose their input
+                this.addForms = this.addForms.filter((_, idx) => failedFormIndices.has(idx));
+
+                const summaryHtml = `
+                    <div class="text-left text-sm space-y-2 mt-2">
+                        <p class="text-gray-300">
+                            Berhasil disimpan: <strong class="text-emerald-400">${successCount}</strong> record.<br>
+                            Gagal disimpan: <strong class="text-red-400">${failedFormIndices.size}</strong> form.
+                        </p>
+                        <div class="p-2.5 bg-red-950/40 border border-red-800 rounded-lg text-xs text-red-200 max-h-48 overflow-y-auto">
+                            <strong>Detail Kesalahan:</strong><br>
+                            &bull; ${errorDetails.join("<br>&bull; ")}
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">
+                            Form yang gagal tetap dipertahankan pada halaman agar Anda dapat memeriksa dan memperbaikinya.
+                        </p>
+                    </div>
+                `;
+
+                showError("Sebagian / Seluruh Data Gagal Disimpan", summaryHtml, true);
+
+                if (successCount > 0) {
+                    this.fetchTimesheets();
+                }
+            }
+        } finally {
+            this.isSubmittingAdd = false;
         }
     },
 
-    showAlert(title, text, icon) {
-        Swal.fire({
-            title: title,
-            text: text,
-            icon: icon,
-            background: "#1F2937",
-            color: "#fff",
-            confirmButtonColor:
-                icon === "error" || icon === "warning" ? "#DC2626" : "#2563EB",
-        });
+    // --- Edit Page (Single Form) Methods ---
+
+    /**
+     * Load an existing timesheet record for editing.
+     * @param {number|string} id
+     */
+    async loadEditTimesheet(id) {
+        this.isLoadingEdit = true;
+        try {
+            let data = null;
+            // First check if already in loaded timesheets array
+            const existing = this.timesheets.find((t) => String(t.id) === String(id));
+            if (existing) {
+                data = existing;
+            } else {
+                data = await getTimesheet(id, this.token);
+            }
+
+            if (!data) throw new Error("Data timesheet tidak ditemukan.");
+
+            const dateStr = data.begin ? data.begin.substring(0, 10) : new Date().toISOString().split("T")[0];
+            const beginStr = data.begin ? data.begin.substring(11, 16) : "08:00";
+            const endStr = data.end ? data.end.substring(11, 16) : "12:00";
+
+            let tagsList = [];
+            if (Array.isArray(data.tags)) {
+                tagsList = data.tags.map((t) => (typeof t === "string" ? t : t.name || String(t)));
+            } else if (typeof data.tags === "string" && data.tags.trim()) {
+                tagsList = data.tags.split(",").map((t) => t.trim()).filter(Boolean);
+            }
+
+            const projectId = typeof data.project === "object" ? data.project?.id : data.project;
+            const activityId = typeof data.activity === "object" ? data.activity?.id : data.activity;
+
+            // Resolve customer from project if available
+            let customerId = "";
+            if (typeof data.project === "object" && data.project?.customer) {
+                customerId = typeof data.project.customer === "object" ? data.project.customer.id : data.project.customer;
+            } else if (projectId) {
+                const foundProj = this.projects.find((p) => String(p.id) === String(projectId));
+                if (foundProj?.customer) {
+                    customerId = foundProj.customer;
+                }
+            }
+
+            this.editForm = {
+                id: data.id,
+                date: dateStr,
+                begin: beginStr,
+                end: endStr,
+                customer: customerId,
+                project: projectId || "",
+                activity: activityId || "",
+                description: data.description || "",
+                tags: tagsList,
+            };
+        } catch (error) {
+            showError("Gagal Memuat Data", error.message);
+            this.navigate("");
+        } finally {
+            this.isLoadingEdit = false;
+        }
+    },
+
+    /**
+     * Submit Edit Form (Single timesheet update via PATCH /timesheets/{id}).
+     */
+    async submitEditForm() {
+        if (!this.editForm.project || !this.editForm.activity || !this.editForm.description.trim()) {
+            showWarning("Validasi Gagal", "Pastikan Project, Activity, dan Description telah diisi.");
+            return;
+        }
+
+        if (!this.editForm.date || !this.editForm.begin || !this.editForm.end) {
+            showWarning("Validasi Gagal", "Tanggal, waktu mulai, dan waktu selesai wajib diisi.");
+            return;
+        }
+
+        const workStart = new Date(`${this.editForm.date}T${this.editForm.begin}:00`);
+        const workEnd = new Date(`${this.editForm.date}T${this.editForm.end}:00`);
+        if (workStart >= workEnd) {
+            showWarning("Validasi Jam Kerja", "Waktu mulai harus lebih awal dari waktu selesai.");
+            return;
+        }
+
+        const tagsString = Array.isArray(this.editForm.tags)
+            ? this.editForm.tags.join(", ")
+            : (this.editForm.tags || "");
+
+        const payload = {
+            begin: workStart.toISOString(),
+            end: workEnd.toISOString(),
+            project: parseInt(this.editForm.project, 10),
+            activity: parseInt(this.editForm.activity, 10),
+            description: this.editForm.description,
+        };
+
+        if (tagsString) {
+            payload.tags = tagsString;
+        }
+
+        this.isSubmittingEdit = true;
+        showLoading("Menyimpan Perubahan...", "Sedang memperbarui catatan timesheet...");
+
+        try {
+            await updateTimesheet(this.editForm.id, payload, this.token);
+            closeAlert();
+            await showSuccess("Perubahan Disimpan!", "Data timesheet berhasil diperbarui.", 2500);
+            this.fetchTimesheets();
+            this.navigate("");
+        } catch (error) {
+            closeAlert();
+            showError("Gagal Memperbarui", error.message);
+        } finally {
+            this.isSubmittingEdit = false;
+        }
     },
 });
-

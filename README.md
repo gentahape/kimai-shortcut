@@ -1,14 +1,23 @@
 # Kimai Shortcut
 
-Kimai Shortcut is a lightweight web application designed to simplify interacting with the Kimai time-tracking system API. It provides an intuitive interface to log in using your Kimai API token, view your timesheets, and efficiently create new time records. A standout feature is its ability to automatically split an 8-hour workday and skip the lunch break (12:00 PM - 1:00 PM) when creating new timesheet entries.
+Kimai Shortcut is a lightweight web application designed to simplify interacting with the Kimai time-tracking system API. It provides an intuitive interface to log in using your Kimai API token, view your timesheets, and efficiently create or edit time records. Standout features include dedicated Add/Edit pages, dynamic multiple form submissions, automated workday chunking skipping lunch breaks (12:00 PM - 1:00 PM), and seamless Light/Dark mode.
+
+## Key Features
+
+- **Dynamic Multiple Form Submissions**: Add several timesheet records across different days or projects at once with "+ Add Another" and duplicate controls, all submitted sequentially with real-time progress and error resilience.
+- **Dedicated Page Flows**: No modals — dedicated Add and Edit pages with clean browser hash routing (`#/`, `#/add`, `#/edit/:id`).
+- **Automated Chunking**: Automatically splits an 8-hour workday (or customized work schedule) into chunks (e.g., 4h max) and skips lunch break.
+- **Light & Dark Mode**: Full theme toggle support with auto-detection and persistence.
+- **Searchable Dropdowns & Tagging**: Fast autocomplete for Customers, Projects, Activities, and Tags.
+- **Modular & Maintainable Architecture**: Clean separation between services, components, constants, and utilities.
 
 ## Dependencies
 
 This project relies on the following libraries and tools:
 
 - **[Alpine.js](https://alpinejs.dev/)** - A rugged, minimal framework for composing JavaScript behavior in your markup.
-- **[Tailwind CSS](https://tailwindcss.com/)** - A utility-first CSS framework for rapid UI development.
-- **[SweetAlert2](https://sweetalert2.github.io/)** - A beautiful, responsive, customizable replacement for JavaScript's popup boxes (utilizing `@sweetalert2/theme-dark`).
+- **[Tailwind CSS](https://tailwindcss.com/)** - A utility-first CSS framework for rapid UI development (v4 with dark mode variant).
+- **[SweetAlert2](https://sweetalert2.github.io/)** - Responsive, customizable dialogs and notifications adapted for both light and dark mode.
 
 ## Installation
 
@@ -60,9 +69,12 @@ This project relies on the following libraries and tools:
    The output will be placed in the `dist/` directory.
 
 4. **Track Time:**
-   - On the application page, enter your Kimai **API Token** to sign in.
-   - Once authenticated, you can view your recent timesheets, search records, and browse through pages.
-   - Click CREATE button to add a new record, fill in the required fields (date, project, activity, description), and the app will process your workday entries, automatically splitting into chunks and skipping the lunch hour.
+   - Enter your Kimai **API Bearer Token** in the navigation bar to sign in.
+   - **View & Search**: Browse your timesheet history with fast search, pagination, and duration badges.
+   - **Add Timesheets**: Click **Tambah Timesheet** (`#/add`) to open the dedicated Add page. Fill one form or click **+ Add Another** / **Salin** to add multiple forms at once. Click **Submit All** to save all entries.
+   - **Edit Timesheets**: Click the edit button on any table row (`#/edit/:id`) to modify a record.
+   - **Delete Timesheets**: Click the delete icon with confirmation to remove an entry.
+   - **Toggle Theme**: Click the sun/moon icon in the navigation bar to toggle between Light and Dark mode.
 
 ## Work Schedule Configuration
 

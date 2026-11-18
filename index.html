@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" class="dark">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,12 +8,15 @@
     <script type="module" src="/src/main.js"></script>
 </head>
 
-<body class="bg-gray-900 text-gray-200 font-sans min-h-screen flex flex-col" x-data="kimaiApp()">
+<body class="bg-slate-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen flex flex-col antialiased transition-colors duration-200" x-data="kimaiApp()">
 
     <div x-html="await loadPartial('/partials/navbar.html')"></div>
-    <div x-html="await loadPartial('/partials/table.html')" class="flex-grow flex flex-col"></div>
+
+    <div x-cloak x-show="currentRoute.view === 'list'" x-html="await loadPartial('/partials/listView.html')" class="flex-grow flex flex-col"></div>
+    <div x-cloak x-show="currentRoute.view === 'add'" x-html="await loadPartial('/partials/addView.html')" class="flex-grow flex flex-col"></div>
+    <div x-cloak x-show="currentRoute.view === 'edit'" x-html="await loadPartial('/partials/editView.html')" class="flex-grow flex flex-col"></div>
+
     <div x-html="await loadPartial('/partials/footer.html')"></div>
-    <div x-html="await loadPartial('/partials/modal.html')"></div>
 
 </body>
 </html>
