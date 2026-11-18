@@ -1,4 +1,58 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 [x-cloak] { display: none !important; }
-input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+/* Invert date/time picker icon in Dark mode only */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0.65;
+    cursor: pointer;
+}
+
+/* SweetAlert2 Theme Adjustments for Dark Mode */
+.dark .swal2-popup {
+    background-color: #1F2937 !important;
+    color: #F9FAFB !important;
+    border: 1px solid #374151 !important;
+}
+
+.dark .swal2-title {
+    color: #F9FAFB !important;
+}
+
+.dark .swal2-html-container {
+    color: #D1D5DB !important;
+}
+
+.dark .swal2-validation-message {
+    background-color: #374151 !important;
+    color: #FCA5A5 !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.4);
+    border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: rgba(107, 114, 128, 0.5);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.7);
+}
